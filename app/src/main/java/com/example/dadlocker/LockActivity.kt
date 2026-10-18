@@ -6,9 +6,11 @@ import android.os.*
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -25,7 +27,6 @@ class LockActivity : AppCompatActivity() {
     private var listening = false
     private var intentionalExit = false
     private val handler = Handler(Looper.getMainLooper())
-
     private val exitRunnable = Runnable { exitPrank() }
 
     companion object {
@@ -43,7 +44,6 @@ class LockActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setupWindow()
         setContentView(R.layout.activity_lock)
-
         tvHint = findViewById(R.id.tvHint)
         tvMock = findViewById(R.id.tvMock)
         btnMic = findViewById(R.id.btnMic)
@@ -51,7 +51,6 @@ class LockActivity : AppCompatActivity() {
         findViewById<FrameLayout>(R.id.root).setOnClickListener {
             if (stage < 3) mock("叫爸爸就可以啦～\n😏")
         }
-
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 mock("返回键没用的～叫爸爸\n😏")
@@ -121,7 +120,6 @@ class LockActivity : AppCompatActivity() {
                 vibrate()
                 tvHint.text = HINT_2
             } else mock("不对不对，要喊『爸爸』才行～\n😏")
-
             2 -> when {
                 saidDad && saidSorry -> unlock()
                 saidSorry -> mock("还差『爸爸』两个字哦～\n😏")
@@ -135,7 +133,80 @@ class LockActivity : AppCompatActivity() {
         val keywords = listOf("爸爸", "粑粑", "把把", "巴巴", "哒哒", "爹")
         return keywords.any { text.contains(it) }
     }
+    
+    private fun mock(msg: String) {
+        tvMock.text = msg
+        tvMock.visibility = View.VISIBLE
+        tvMock.startAnimation(AnimationUtils.loadAnimation(this, R.anim.shake))
+        vibrate()
+    }
+
+    private fun unlock() {
+        stage = 3
+        vibrate()
+        tvMock.visibility = View.GONE
+        tvHint.text = "真乖～😄 解锁啦！"
+        handler.postDelayed({ exitPrank() }, 1600)
+    }
+
+    private fun exitPrank() {
+        intentionalExit = true
+        Prefs.setActive(this, false)
+        finish()
+    }
+
+    private fun vibrate() {
+        val vb = if (Build.VERSION.SDK_INT >= 31) {
+            (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+        } else {
+            @Suppress("DEPRECATION") getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+        if (Build.VERSION.SDK_INT >= 26) {
+            vb.vibrate(VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION") vb.vibrate(80)
+        }
+    }
 
     private fun setupWindow() {
+        if (Build.VERSION.SDK_INT >= 27) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+            (getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager).requestDismissKeyguard(this, null)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD)
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        if (B
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_FULLSCREEN
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean = when (keyCode) {
+        KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> true
+        else -> super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean = when (keyCode) {
+        KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> true
+        else -> super.onKeyUp(keyCode, event)
+    }
+
+    override fun onDestroy() {
+        if (::recognizer.isInitialized) recognizer.destroy()
+        handler.removeCallbacksAndMessages(null)
+        super.onDestroy()
+        if (!intentionalExit && stage < 3 && Prefs.isActive(this)) {
+            LockActivity.start(this)
+        }
+    }
+}
+
