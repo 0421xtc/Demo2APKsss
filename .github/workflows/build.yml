@@ -9,7 +9,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
       - name: Accept licenses
         run: yes | sdkmanager --licenses
       - name: Create Gradle wrapper
