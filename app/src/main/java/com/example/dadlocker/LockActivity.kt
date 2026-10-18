@@ -6,11 +6,9 @@ import android.os.*
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -23,12 +21,11 @@ class LockActivity : AppCompatActivity() {
     private lateinit var tvMock: TextView
     private lateinit var btnMic: TextView
 
-    private var stage = 1               // 1=等"爸爸" 2=等"爸爸对不起" 3=已解锁
+    private var stage = 1
     private var listening = false
     private var intentionalExit = false
     private val handler = Handler(Looper.getMainLooper())
 
-    // 隐藏逃生门：按住语音键8秒，整蛊彻底结束（只告诉你）
     private val exitRunnable = Runnable { exitPrank() }
 
     companion object {
@@ -51,12 +48,10 @@ class LockActivity : AppCompatActivity() {
         tvMock = findViewById(R.id.tvMock)
         btnMic = findViewById(R.id.btnMic)
 
-        // 点屏幕空白处 = 嘲笑
         findViewById<FrameLayout>(R.id.root).setOnClickListener {
             if (stage < 3) mock("叫爸爸就可以啦～\n😏")
         }
 
-        // 返回键（含手势返回）没用的
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 mock("返回键没用的～叫爸爸\n😏")
@@ -70,7 +65,6 @@ class LockActivity : AppCompatActivity() {
         recognizer = SpeechRecognizer.createSpeechRecognizer(this)
         recognizer.setRecognitionListener(listener)
 
-        // 按住说话，松开识别
         btnMic.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -111,15 +105,13 @@ class LockActivity : AppCompatActivity() {
         if (listening) return
         listening = true
         recognizer.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
         })
     }
 
-    // AI识别：模糊匹配，音近也算（粑粑/把把/巴巴都算"爸爸"）
     private fun handleSpeech(matches: List<String>) {
         val saidDad = matches.any { isDad(it) }
         val saidSorry = matches.any { it.contains("对不起") }
@@ -139,4 +131,11 @@ class LockActivity : AppCompatActivity() {
         }
     }
 
-    private f
+    private fun isDad(text: String): Boolean {
+        val keywords = listOf("爸爸", "粑粑", "把把", "巴巴", "哒哒", "爹")
+        return keywords.any { text.contains(it) }
+    }
+
+    private fun setupWindow() {
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (B
