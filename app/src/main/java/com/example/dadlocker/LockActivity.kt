@@ -11,7 +11,6 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -28,11 +27,12 @@ class LockActivity : AppCompatActivity() {
     private var listening = false
     private var intentionalExit = false
     private val handler = Handler(Looper.getMainLooper())
+    
     private val exitRunnable = Runnable { exitPrank() }
 
     companion object {
-        private const val HINT_1 = "手机已被锁定 🔒\n想解锁？对着手机喊：爸爸"
-        private const val HINT_2 = "嗯？光叫爸爸就想走？\n再说一句：爸爸对不起"
+        private const val HINT_1 = "🚨 警告：设备已被安全协议锁定 🚨\n\n请点击下方麦克风，进行声纹验证：\n对该手机大喊「爸爸」"
+        private const val HINT_2 = "⚠️ 二次验证 ⚠️\n\n请继续大喊：「爸爸对不起」"
 
         fun start(context: Context) {
             context.startActivity(Intent(context, LockActivity::class.java).apply {
@@ -45,22 +45,25 @@ class LockActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setupWindow()
         setContentView(R.layout.activity_lock)
+        
         tvHint = findViewById(R.id.tvHint)
         tvMock = findViewById(R.id.tvMock)
         btnMic = findViewById(R.id.btnMic)
 
+        tvHint.text = HINT_1
+
         findViewById<FrameLayout>(R.id.root).setOnClickListener {
-            if (stage < 3) mock("叫爸爸就可以啦～\n😏")
+            if (stage < 3) mock("系统提示：请快点配合语音验证，否则将永久锁定数据！\n😏")
         }
-        
+
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                mock("返回键没用的～叫爸爸\n😏")
+                mock("警告：强制退出将被记录，请完成语音验证！\n😏")
             }
         })
 
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            tvHint.text = "此手机不支持语音识别…"
+            tvHint.text = "⚠️ 系统组件缺失\n请重启手机或检查网络…"
             return
         }
         recognizer = SpeechRecognizer.createSpeechRecognizer(this)
@@ -75,28 +78,41 @@ class LockActivity : AppCompatActivity() {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     handler.removeCallbacks(exitRunnable)
-                    recognizer.stopListening()
                     true
                 }
                 else -> false
             }
         }
+        
+        handler.postDelayed({
+            mock("请点击下方麦克风图标进行验证！")
+        }, 1000)
     }
-
     private val listener = object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) { tvHint.text = "听着呢，说吧…" }
+        override fun onReadyForSpeech(params: Bundle?) { tvHint.text = "🎤 正在监听…请大喊！" }
         override fun onBeginningOfSpeech() {}
         override fun onRmsChanged(rmsdB: Float) {}
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() {}
+        
         override fun onError(error: Int) {
             listening = false
-            tvHint.text = if (stage == 1) HINT_1 else HINT_2
+            handler.postDelayed({
+                if (stage < 3 && !intentionalExit) {
+                    tvHint.text = if (stage == 1) HINT_1 else HINT_2
+                    startListening()
+                }
+            }, 1000)
         }
+        
         override fun onResults(results: Bundle?) {
             listening = false
             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            if (!matches.isNullOrEmpty()) handleSpeech(matches)
+            if (!matches.isNullOrEmpty()) {
+                handleSpeech(matches)
+            } else {
+                startListening()
+            }
         }
         override fun onPartialResults(partialResults: Bundle?) {}
         override fun onEvent(eventType: Int, params: Bundle?) {}
@@ -115,19 +131,34 @@ class LockActivity : AppCompatActivity() {
 
     private fun handleSpeech(matches: List<String>) {
         val saidDad = matches.any { isDad(it) }
-        val saidSorry = matches.any { it.contains("对不起") }
+        val saidSorry = matches.any { it.contains("对不起") || it.contains("抱歉") }
+        
         when (stage) {
             1 -> if (saidDad) {
                 stage = 2
                 vibrate()
                 tvHint.text = HINT_2
-            } else mock("不对不对，要喊『爸爸』才行～\n😏")
+                mock("验证通过第一层！")
+                handler.postDelayed({ startListening() }, 1000)
+            } else {
+                mock("❌ 验证失败！请老实喊『爸爸』！\n😏")
+                startListening()
+            }
             
             2 -> when {
                 saidDad && saidSorry -> unlock()
-                saidSorry -> mock("还差『爸爸』两个字哦～\n😏")
-                saidDad -> mock("光叫爸爸可不够，要说『爸爸对不起』～\n😏")
-                else -> mock("要说『爸爸对不起』才行～\n😏")
+                saidSorry -> {
+                    mock("❌ 缺少尊称！要连起来说『爸爸对不起』！\n😏")
+                    startListening()
+                }
+                saidDad -> {
+                    mock("❌ 不够诚心！请说『爸爸对不起』！\n😏")
+                    startListening()
+                }
+                else -> {
+                    mock("❌ 系统拒绝！请说『爸爸对不起』！\n😏")
+                    startListening()
+                }
             }
         }
     }
@@ -140,16 +171,16 @@ class LockActivity : AppCompatActivity() {
     private fun mock(msg: String) {
         tvMock.text = msg
         tvMock.visibility = View.VISIBLE
-        tvMock.startAnimation(AnimationUtils.loadAnimation(this, R.anim.shake))
         vibrate()
+        handler.postDelayed({ tvMock.visibility = View.GONE }, 3000)
     }
 
     private fun unlock() {
         stage = 3
         vibrate()
         tvMock.visibility = View.GONE
-        tvHint.text = "真乖～😄 解锁啦！"
-        handler.postDelayed({ exitPrank() }, 1600)
+        tvHint.text = "✅ 声纹验证通过，系统已解锁！"
+        handler.postDelayed({ exitPrank() }, 1500)
     }
 
     private fun exitPrank() {
@@ -165,9 +196,9 @@ class LockActivity : AppCompatActivity() {
             @Suppress("DEPRECATION") getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
         if (Build.VERSION.SDK_INT >= 26) {
-            vb.vibrate(VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE))
+            vb.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
         } else {
-            @Suppress("DEPRECATION") vb.vibrate(80)
+            @Suppress("DEPRECATION") vb.vibrate(100)
         }
     }
 
