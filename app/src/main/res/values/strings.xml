@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">语音助手</string>
+    <string name="app_title">整蛊启动器</string>
+    <string name="step1">1. 开启无障碍服务（必需）</string>
+    <string name="step2">2. 启动整蛊</string>
+    <string name="service_desc">智能按键响应服务</string>
+    <string name="lock_hint_1">手机已被锁定 🔒\n想解锁？对着手机喊：爸爸</string>
+    <string name="lock_hint_2">嗯？光叫爸爸就想走？\n再说一句：爸爸对不起</string>
+</resources>
