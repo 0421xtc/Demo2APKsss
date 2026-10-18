@@ -1,5 +1,6 @@
 package com.example.dadlocker
 
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.os.*
@@ -51,6 +52,7 @@ class LockActivity : AppCompatActivity() {
         findViewById<FrameLayout>(R.id.root).setOnClickListener {
             if (stage < 3) mock("叫爸爸就可以啦～\n😏")
         }
+        
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 mock("返回键没用的～叫爸爸\n😏")
@@ -120,6 +122,7 @@ class LockActivity : AppCompatActivity() {
                 vibrate()
                 tvHint.text = HINT_2
             } else mock("不对不对，要喊『爸爸』才行～\n😏")
+            
             2 -> when {
                 saidDad && saidSorry -> unlock()
                 saidSorry -> mock("还差『爸爸』两个字哦～\n😏")
@@ -209,4 +212,3 @@ class LockActivity : AppCompatActivity() {
         }
     }
 }
-
