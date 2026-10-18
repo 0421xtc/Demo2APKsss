@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(
         requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsPermissionsResult(requestCode, permissions, grantResults)
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_AUDIO && grantResults.isNotEmpty()
             && grantResults[0] == PackageManager.PERMISSION_GRANTED) startPrank()
     }
